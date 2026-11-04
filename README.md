@@ -2,9 +2,9 @@
 
 # 🔑 fido-key
 
-**Швейцарский нож в мире цифровых ключей — на китайской плате за пару долларов.**
+**Многофункциональный аппаратный ключ на плате YD-RP2040.**
 
-FIDO2 / passkeys · SSH · OATH TOTP/HOTP · <sub>скоро:</sub> дисплей · NFC
+FIDO2 / passkeys · SSH · OATH TOTP/HOTP · <sub>план:</sub> дисплей · NFC
 
 ![board](https://img.shields.io/badge/board-YD--RP2040-black?style=flat-square)
 ![mcu](https://img.shields.io/badge/MCU-RP2040%20%40125MHz-c51a4a?style=flat-square&logo=raspberrypi&logoColor=white)
@@ -16,115 +16,139 @@ FIDO2 / passkeys · SSH · OATH TOTP/HOTP · <sub>скоро:</sub> диспле
 
 ---
 
-## Что это
+## 1. Назначение
 
-Аппаратный ключ безопасности на базе **YD-RP2040** (VCC-GND Studio, чёрная плата, 4 MB flash, RGB WS2812, кнопки BOOT / RST / USR) с прошивкой [pico-fido](https://github.com/polhenarejos/pico-fido), собранной и исправленной специально под эту плату.
+Устройство — аппаратный ключ безопасности.
+Основа — плата **YD-RP2040** (VCC-GND Studio): 4 МБ flash, светодиод RGB WS2812, кнопки BOOT, RST, USR.
+Прошивка — [pico-fido](https://github.com/polhenarejos/pico-fido) v8.0 с исправлениями для этой платы.
 
-| Функция | Статус | Для чего |
+| Функция | Статус | Применение |
 |---|:---:|---|
-| **FIDO2 / WebAuthn passkeys** | ✅ | вход на сайты без пароля, SSO (Pocket ID и т.п.) |
-| **SSH `ecdsa-sk` resident key** | ✅ | `ssh root@server` — приватный ключ не покидает плату |
-| **U2F (CTAP1)** | ✅ | старые сервисы |
-| **OATH TOTP / HOTP** (CCID) | ✅ | 2FA-коды через Yubico Authenticator-совместимый протокол |
-| **OTP-клавиатура** | ✅ | ключ «печатает» одноразовый пароль сам |
-| **RGB-индикация** (WS2812, GPIO23) | ✅ | статус ключа цветом |
-| **Дисплей** | 🛠️ план | подтверждение операций, ввод PIN на устройстве |
-| **NFC** | 🛠️ план | работа как бесконтактная карта |
+| **FIDO2 / WebAuthn (passkeys)** | ✅ | Вход на сайты без пароля. Вход через SSO (Pocket ID). |
+| **SSH, ключ `ecdsa-sk` (resident)** | ✅ | Вход на сервер. Закрытый ключ остаётся на плате. |
+| **U2F (CTAP1)** | ✅ | Вход в старые сервисы. |
+| **OATH TOTP / HOTP** (CCID) | ✅ | Коды двухфакторной аутентификации. |
+| **OTP-клавиатура** | ✅ | Ключ вводит одноразовый пароль как клавиатура. |
+| **Индикация RGB** (WS2812, GPIO23) | ✅ | Цвет показывает состояние ключа. |
+| **Дисплей** | 🛠️ план | Показ операции. Ввод PIN на устройстве. |
+| **NFC** | 🛠️ план | Работа как бесконтактная карта. |
 
 ---
 
-## ⚠️ Почему не официальная прошивка
+## 2. Почему нельзя использовать официальную прошивку
 
-Официальный `pico_fido_pico-8.0.uf2` на YD-RP2040 4 MB **не работает и опасен** ([pico-fido#294](https://github.com/polhenarejos/pico-fido/issues/294)):
+> ⚠️ **ПРЕДУПРЕЖДЕНИЕ:** Не используйте официальный файл `pico_fido_pico-8.0.uf2` на плате YD-RP2040 4 МБ.
+> Причина описана в [pico-fido#294](https://github.com/polhenarejos/pico-fido/issues/294).
 
-1. **Зависает на первой CTAP2-команде.** Хранилище данных размещается в 2–4 MB flash, а запись туда на этой плате не доходит. Windows висит на «Are you there? Use your security key».
-2. **На 200 MHz кривая математика ECC.** Примерно треть сгенерированных P-256 ключей — точки не на кривой. Кривые ECDSA-подписи потенциально **сливают приватный ключ**.
+Официальная прошивка имеет две неисправности на этой плате:
 
-Что исправлено в этой сборке:
+1. **Ключ зависает на первой команде CTAP2.** Прошивка хранит данные в области 2–4 МБ. На этой плате запись в эту область не выполняется. Windows показывает «Are you there?» и не продолжает.
+2. **На частоте 200 МГц ключи ECC неправильные.** Около 30 % ключей P-256 не лежат на кривой. Неправильная подпись ECDSA может раскрыть закрытый ключ.
 
-| Патч | Что делает |
+Исправления в этой сборке:
+
+| Файл | Изменение |
 |---|---|
-| [`patches/pico-fido-clock-override.patch`](patches/pico-fido-clock-override.patch) | позволяет отключить разгон → **125 MHz** |
-| [`patches/pico-keys-sdk-flash-cap.patch`](patches/pico-keys-sdk-flash-cap.patch) | хранилище ограничено первыми **2 MB**, начинается после сектора phymarker |
-| [`board/vccgnd_yd_rp2040.h`](board/vccgnd_yd_rp2040.h) | описание платы: WS2812 на GPIO23, USR на GPIO24, 4 MB flash |
+| [`patches/pico-fido-clock-override.patch`](patches/pico-fido-clock-override.patch) | Разрешает частоту **125 МГц** вместо 200 МГц. |
+| [`patches/pico-keys-sdk-flash-cap.patch`](patches/pico-keys-sdk-flash-cap.patch) | Ограничивает хранилище первыми **2 МБ**. Хранилище начинается после сектора phymarker. |
+| [`board/vccgnd_yd_rp2040.h`](board/vccgnd_yd_rp2040.h) | Описывает плату: WS2812 на GPIO23, USR на GPIO24, 4 МБ flash. |
 
-Результат прямой CTAP-диагностики ([`tools/fido_diag.py`](tools/fido_diag.py)):
+Результат проверки утилитой [`tools/fido_diag.py`](tools/fido_diag.py):
 
 ```
-                         официальный v8.0      эта сборка
-CTAPHID ping             ⛔ HANG               ✅ 0.10s
-CTAP2 getInfo            ⛔ HANG               ✅ 0.12s  FIDO_2_0…FIDO_2_3, rk, credMgmt
-authenticatorSelection   —                    ✅
-makeCredential (no PIN)  ⛔ HANG               ✅ PIN_NOT_SET (корректно)
+Команда                   Официальный v8.0     Эта сборка
+CTAPHID ping              ⛔ зависание         ✅ 0.10 с
+CTAP2 getInfo             ⛔ зависание         ✅ 0.12 с  FIDO_2_0…FIDO_2_3, rk, credMgmt
+authenticatorSelection    —                    ✅
+makeCredential (без PIN)  ⛔ зависание         ✅ PIN_NOT_SET (правильный ответ)
 ```
 
 ---
 
-## 🚀 Быстрый старт
+## 3. Порядок работы
 
-### 1. Прошить
+### 3.1. Прошивка
 
-1. Зажми **BOOT** → нажми и отпусти **RST** → отпусти **BOOT**. Появится диск `RPI-RP2`.
-2. Скопируй на него `pico_fido_yd-rp2040-8.0-fix.uf2` (из [Releases](../../releases) или собери сам).
-3. Плата перезагрузится и определится как *Pico Key* (FIDO HID + CCID + клавиатура).
+1. Нажмите и удерживайте кнопку **BOOT**.
+2. Нажмите и отпустите кнопку **RST**.
+3. Отпустите кнопку **BOOT**. Компьютер показывает диск `RPI-RP2`.
+4. Скопируйте файл `pico_fido_yd-rp2040-8.0-fix.uf2` на диск `RPI-RP2`. Файл находится в [Releases](../../releases).
+5. Подождите 5 секунд. Плата перезагружается и определяется как *Pico Key*.
 
-> RP2040 нельзя «окирпичить»: загрузчик в ROM, BOOT+RST работает всегда.
+> ℹ️ Загрузчик RP2040 находится в ROM. Ошибка прошивки не повреждает плату. Шаги 1–3 работают всегда.
 
-### 2. Задать PIN
+### 3.2. Установка PIN
 
-*Параметры Windows → Учётные записи → Варианты входа → Ключ безопасности → Управление*
-или просто при первой регистрации passkey — Windows сама предложит.
+> ⚠️ **ПРЕДУПРЕЖДЕНИЕ:** После 8 неправильных попыток ввода PIN ключ блокируется. Разблокировка — только сброс. Сброс удаляет все passkeys.
 
-- PIN хранится **на ключе**, одинаковый для любого ПК / браузера / SSH.
-- 8 неверных попыток → ключ блокируется, лечится только сбросом (все passkeys теряются).
+1. Откройте *Параметры Windows → Учётные записи → Варианты входа → Ключ безопасности → Управление*.
+2. Введите новый PIN. Используйте 6 символов или больше.
+3. Запишите PIN в надёжном месте.
 
-### 3. Passkey на сайте
+PIN хранится на ключе. PIN одинаковый для всех компьютеров, браузеров и SSH.
 
-При регистрации в окне Windows: **Change → Security key** (иначе Windows сохранит passkey в Windows Hello, а не на ключ).
+### 3.3. Регистрация passkey на сайте
 
-### 4. SSH-ключ на плате
+1. На сайте выберите добавление passkey.
+2. В окне Windows нажмите **Change**.
+3. Выберите **Security key**.
+4. Введите PIN.
 
-```powershell
-# Windows: только встроенный OpenSSH (он ходит в ключ через webauthn.dll без прав админа)
-C:\Windows\System32\OpenSSH\ssh-keygen.exe -t ecdsa-sk `
-  -O resident -O verify-required -O application=ssh:myserver `
-  -C "fido-key@myserver" -f $HOME\.ssh\fido_myserver
-```
+> ℹ️ Если не выбрать **Security key**, Windows сохраняет passkey в Windows Hello, а не на ключ.
 
-Публичную часть — в `~/.ssh/authorized_keys` на сервере (OpenSSH ≥ 8.2). Вход:
+### 3.4. Создание ключа SSH
 
-```powershell
-C:\Windows\System32\OpenSSH\ssh.exe -i $HOME\.ssh\fido_myserver root@myserver
-```
+> ℹ️ В Windows используйте только `C:\Windows\System32\OpenSSH`. Этот OpenSSH работает с ключом без прав администратора. `ssh` из Git Bash требует прав администратора.
+> ℹ️ В этой сборке EdDSA выключена. Используйте тип `ecdsa-sk`, а не `ed25519-sk`.
 
-Ключ **resident** — на новом компьютере его можно вытащить с платы: `ssh-keygen -K`.
+1. Выполните команду:
+   ```powershell
+   C:\Windows\System32\OpenSSH\ssh-keygen.exe -t ecdsa-sk `
+     -O resident -O verify-required -O application=ssh:myserver `
+     -C "fido-key@myserver" -f $HOME\.ssh\fido_myserver
+   ```
+2. Введите PIN в окне Windows.
+3. Добавьте содержимое файла `fido_myserver.pub` в `~/.ssh/authorized_keys` на сервере. Сервер должен иметь OpenSSH 8.2 или новее.
+4. Выполните вход:
+   ```powershell
+   C:\Windows\System32\OpenSSH\ssh.exe -i $HOME\.ssh\fido_myserver root@myserver
+   ```
 
-> ℹ️ В этой сборке EdDSA выключена → используй `ecdsa-sk`, а не `ed25519-sk`.
-> ℹ️ Git Bash / MSYS `ssh` не видит FIDO без прав администратора — используй `System32\OpenSSH`.
-
----
-
-## 🛠️ Сборка из исходников
-
-Linux или WSL (проверено на Arch WSL, `arm-none-eabi-gcc 16.2`, `cmake 4.4`, pico-sdk `2.2.0`):
-
-```bash
-# Arch:   pacman -S arm-none-eabi-gcc arm-none-eabi-newlib cmake ninja git python
-# Debian: apt install gcc-arm-none-eabi libnewlib-arm-none-eabi cmake ninja-build git python3
-./scripts/build.sh
-# → firmware/pico_fido_yd-rp2040-8.0-fix.uf2
-```
-
-Скрипт клонирует pico-sdk и pico-fido нужных версий, накладывает патчи, ставит board-файл и собирает с `PICO_BOARD=vccgnd_yd_rp2040`, `PICO_USE_FASTEST_SUPPORTED_CLOCK=0`.
+Ключ имеет тип resident. На новом компьютере получите ключ с платы командой `ssh-keygen -K`.
 
 ---
 
-## 🧰 Утилиты
+## 4. Сборка из исходного кода
 
-| Файл | Что делает |
-|---|---|
-| [`tools/fido_diag.py`](tools/fido_diag.py) | прямая CTAP-диагностика по шагам с детектом зависаний (Windows — от админа). `pip install fido2` |
-| [`tools/phy_led.py`](tools/phy_led.py) | чтение/запись PHY-конфига ключа через CCID (драйвер LED, GPIO, порядок цветов). `pip install pyscard` |
+Требования: Linux или WSL. Проверено: Arch (WSL), `arm-none-eabi-gcc 16.2`, `cmake 4.4`, pico-sdk `2.2.0`.
+
+1. Установите пакеты:
+   ```bash
+   # Arch
+   pacman -S arm-none-eabi-gcc arm-none-eabi-newlib cmake ninja git python
+   # Debian / Ubuntu
+   apt install gcc-arm-none-eabi libnewlib-arm-none-eabi cmake ninja-build git python3
+   ```
+2. Выполните скрипт:
+   ```bash
+   ./scripts/build.sh
+   ```
+3. Возьмите результат: `firmware/pico_fido_yd-rp2040-8.0-fix.uf2`.
+
+Скрипт выполняет эти операции:
+- загружает pico-sdk и pico-fido нужных версий;
+- применяет патчи;
+- копирует описание платы;
+- собирает прошивку с `PICO_BOARD=vccgnd_yd_rp2040` и `PICO_USE_FASTEST_SUPPORTED_CLOCK=0`.
+
+---
+
+## 5. Утилиты
+
+| Файл | Назначение | Зависимость |
+|---|---|---|
+| [`tools/fido_diag.py`](tools/fido_diag.py) | Проверяет команды CTAP по шагам. Находит зависания. В Windows запускайте от администратора. | `pip install fido2` |
+| [`tools/phy_led.py`](tools/phy_led.py) | Читает и записывает конфигурацию PHY через CCID: драйвер LED, GPIO, порядок цветов. | `pip install pyscard` |
 
 ```bash
 python tools/phy_led.py read
@@ -133,46 +157,48 @@ python tools/phy_led.py set-ws2812 gpio=23 order=GRB
 
 ---
 
-## 🔒 Модель безопасности — честно
+## 6. Модель безопасности
 
-| | |
+| | Свойство |
 |---|---|
-| ✅ | приватные ключи генерируются на плате и не покидают её по USB |
-| ✅ | PIN / user verification, блокировка после 8 попыток |
-| ⚠️ | **у RP2040 нет secure element** — при физическом доступе к плате flash можно снять программатором |
-| ⚠️ | кнопка присутствия по умолчанию выключена (касание подтверждается автоматически) — защиту держит PIN |
-| 🔜 | для серьёзного уровня — переезд на **RP2350** (OTP-ключи, secure boot) |
+| ✅ | Закрытые ключи создаются на плате. Ключи не передаются по USB. |
+| ✅ | Ключ требует PIN. После 8 ошибок ключ блокируется. |
+| ⚠️ | RP2040 не имеет защищённого элемента. При физическом доступе flash можно прочитать программатором. |
+| ⚠️ | Кнопка присутствия выключена. Прошивка подтверждает касание автоматически. Защиту обеспечивает PIN. |
+| 🔜 | Для высокого уровня защиты нужен RP2350: ключи в OTP, secure boot. |
 
-Это отличный ключ для домашней инфраструктуры и личных аккаунтов, но не замена сертифицированному YubiKey для угроз уровня «украли и разобрали».
-
----
-
-## 🗺️ Роадмап
-
-- [x] Плата определяется, pico-fido прошит
-- [x] Найдено и исправлено зависание + ECC на 200 MHz
-- [x] RGB-индикация статуса
-- [x] Passkey для SSO
-- [x] SSH resident key, вход на сервер
-- [ ] Кнопка присутствия (BOOT/USR) вместо авто-подтверждения
-- [ ] EdDSA → `ed25519-sk`
-- [ ] Маленький дисплей (SSD1306 / ST7789): что подтверждаю, ввод PIN на устройстве
-- [ ] NFC-модуль → бесконтактная карта
-- [ ] Корпус
+Устройство подходит для домашней инфраструктуры и личных учётных записей.
+Устройство не заменяет сертифицированный ключ (например, YubiKey) при риске кражи и разборки.
 
 ---
 
-## 📁 Структура
+## 7. План работ
+
+- [x] Плата определяется. Прошивка pico-fido установлена.
+- [x] Зависание и ошибка ECC на 200 МГц исправлены.
+- [x] Индикация RGB работает.
+- [x] Passkey для SSO работает.
+- [x] Ключ SSH (resident) работает. Вход на сервер проверен.
+- [ ] Включить кнопку присутствия (BOOT или USR).
+- [ ] Включить EdDSA для `ed25519-sk`.
+- [ ] Подключить дисплей (SSD1306 или ST7789). Показ операции. Ввод PIN на устройстве.
+- [ ] Подключить модуль NFC. Работа как бесконтактная карта.
+- [ ] Сделать корпус.
+
+---
+
+## 8. Структура репозитория
 
 ```
 fido-key/
-├── board/        # board-header YD-RP2040 для pico-sdk
-├── patches/      # патчи к pico-fido v8.0 / pico-keys-sdk
-├── scripts/      # build.sh
-├── tools/        # диагностика и конфиг ключа
-└── firmware/     # собранные .uf2 (в git не коммитятся → Releases)
+├── board/        # описание платы YD-RP2040 для pico-sdk
+├── patches/      # патчи к pico-fido v8.0 и pico-keys-sdk
+├── scripts/      # скрипт сборки build.sh
+├── tools/        # утилиты диагностики и конфигурации
+└── firmware/     # файлы .uf2 (не хранятся в git, см. Releases)
 ```
 
-## Лицензия
+## 9. Лицензия
 
-[AGPL-3.0](LICENSE) — как и [pico-fido](https://github.com/polhenarejos/pico-fido) / [pico-keys-sdk](https://github.com/polhenarejos/pico-keys-sdk), на которых построен проект. Вся криптография и протоколы — заслуга Pol Henarejos; здесь — адаптация под плату и исправления.
+[AGPL-3.0](LICENSE). Лицензия совпадает с лицензией [pico-fido](https://github.com/polhenarejos/pico-fido) и [pico-keys-sdk](https://github.com/polhenarejos/pico-keys-sdk).
+Автор криптографии и протоколов — Pol Henarejos. Этот проект добавляет адаптацию для платы и исправления.
