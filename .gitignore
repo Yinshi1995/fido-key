@@ -1,4 +1,4 @@
-src/
+/src/
 firmware/*.uf2
 tools/diag_out.txt
 __pycache__/
