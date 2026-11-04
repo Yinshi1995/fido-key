@@ -1,0 +1,5 @@
+src/
+firmware/*.uf2
+tools/diag_out.txt
+__pycache__/
+*.pyc

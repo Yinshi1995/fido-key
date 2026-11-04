@@ -1,0 +1,23 @@
+diff --git a/src/fs/low_flash.c b/src/fs/low_flash.c
+index 3b6ad9a..a5032e5 100644
+--- a/src/fs/low_flash.c
++++ b/src/fs/low_flash.c
+@@ -221,8 +221,18 @@ void low_flash_init(void) {
+     }
+     data_end_addr -= 2 * FLASH_SECTOR_SIZE;
+ #else
++#ifdef PICO_FLASH_SIZE_LIMIT_BYTES
++    /* fido-key: YD-RP2040 4MB cannot persist writes above 2MB (pico-fido #294) */
++    if (FLASH_SIZE_BYTES > PICO_FLASH_SIZE_LIMIT_BYTES) {
++        FLASH_SIZE_BYTES = PICO_FLASH_SIZE_LIMIT_BYTES;
++    }
++#endif
+     data_start_addr = (FLASH_SIZE_BYTES >> 1);
+     data_end_addr = FLASH_SIZE_BYTES;
++    /* keep data pool off the phymarker sector at 1MB */
++    if (data_start_addr <= 0x100000) {
++        data_start_addr = 0x100000 + FLASH_SECTOR_SIZE;
++    }
+ #endif
+ 
+     data_start_addr += XIP_BASE;

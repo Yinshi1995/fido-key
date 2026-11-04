@@ -1,0 +1,21 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c79c643..77fa3f4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -42,7 +42,9 @@ if(ESP_PLATFORM)
+     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+ else()
+     if(NOT ENABLE_EMULATION)
+-        set(PICO_USE_FASTEST_SUPPORTED_CLOCK 1)
++        if(NOT DEFINED PICO_USE_FASTEST_SUPPORTED_CLOCK)
++            set(PICO_USE_FASTEST_SUPPORTED_CLOCK 1)
++        endif()
+         include(pico_sdk_import.cmake)
+     endif()
+ 
+diff --git a/pico-keys-sdk b/pico-keys-sdk
+--- a/pico-keys-sdk
++++ b/pico-keys-sdk
+@@ -1 +1 @@
+-Subproject commit 7c5f4d9b95d5c17531a45c74c673822242d4d376
++Subproject commit 7c5f4d9b95d5c17531a45c74c673822242d4d376-dirty
